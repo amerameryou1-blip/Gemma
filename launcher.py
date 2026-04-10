@@ -17,6 +17,7 @@ import argparse
 import os
 import sys
 import time
+import traceback
 import urllib.request
 
 # ── Configuration ──────────────────────────────────────────────────
@@ -74,7 +75,6 @@ def run_setup():
     """Step 1: Install dependencies."""
     print(">>> STEP 1/5: Installing dependencies")
     print()
-    # Clear any cached module so we get the fresh download
     sys.path.insert(0, ".")
     if "setup" in sys.modules:
         del sys.modules["setup"]
@@ -200,49 +200,63 @@ def main():
     print("=" * 60)
     print()
 
-    # ── Step 0: Download files from GitHub ─────────────────────────
-    if not args.skip_download:
-        download_all()
-    else:
-        print("[launcher] Skipping download (--skip_download)")
+    try:
+        # ── Step 0: Download files from GitHub ─────────────────────
+        if not args.skip_download:
+            download_all()
+        else:
+            print("[launcher] Skipping download (--skip_download)")
+            print()
+
+        # ── Step 1: Setup ─────────────────────────────────────────
+        if not args.skip_setup:
+            run_setup()
+        else:
+            print(">>> STEP 1/5: Skipping setup (--skip_setup)")
+            print()
+
+        # ── Step 2: TPU Init ──────────────────────────────────────
+        run_tpu_init()
+
+        # ── Step 3: Tokenizer ─────────────────────────────────────
+        tokenizer = run_tokenizer(args.model_dir)
+
+        # ── Step 4: Model ─────────────────────────────────────────
+        model, params = run_model_loader(args.model_dir)
+
+        # ── Step 5: Inference ─────────────────────────────────────
+        result = run_inference(
+            model=model,
+            params=params,
+            tokenizer=tokenizer,
+            prompt=args.prompt,
+            max_length=args.max_length,
+            temperature=args.temperature,
+            top_k=args.top_k,
+        )
+
+        # ── Summary ───────────────────────────────────────────────
+        total_time = time.time() - overall_start
         print()
+        print("=" * 60)
+        print(f"Total runtime: {total_time:.1f}s")
+        print("Status: SUCCESS")
+        print("=" * 60)
 
-    # ── Step 1: Setup ─────────────────────────────────────────────
-    if not args.skip_setup:
-        run_setup()
-    else:
-        print(">>> STEP 1/5: Skipping setup (--skip_setup)")
+        return result
+
+    except Exception as e:
+        # Print the FULL traceback so the user can see exactly what failed
         print()
-
-    # ── Step 2: TPU Init ──────────────────────────────────────────
-    run_tpu_init()
-
-    # ── Step 3: Tokenizer ─────────────────────────────────────────
-    tokenizer = run_tokenizer(args.model_dir)
-
-    # ── Step 4: Model ─────────────────────────────────────────────
-    model, params = run_model_loader(args.model_dir)
-
-    # ── Step 5: Inference ─────────────────────────────────────────
-    result = run_inference(
-        model=model,
-        params=params,
-        tokenizer=tokenizer,
-        prompt=args.prompt,
-        max_length=args.max_length,
-        temperature=args.temperature,
-        top_k=args.top_k,
-    )
-
-    # ── Summary ───────────────────────────────────────────────────
-    total_time = time.time() - overall_start
-    print()
-    print("=" * 60)
-    print(f"Total runtime: {total_time:.1f}s")
-    print("Status: SUCCESS")
-    print("=" * 60)
-
-    return result
+        print("=" * 60)
+        print("FATAL ERROR — Full traceback:")
+        print("=" * 60)
+        traceback.print_exc()
+        print("=" * 60)
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error message: {e}")
+        print("=" * 60)
+        raise
 
 
 if __name__ == "__main__":
