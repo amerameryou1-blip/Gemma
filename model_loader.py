@@ -23,9 +23,7 @@ Known failure points and fixes:
   3. XLA compilation error: The first forward pass triggers XLA compilation
      which can take 2-5 minutes. This is normal — do not interrupt.
 """
-import argparse
 import os
-import sys
 import time
 
 import jax
@@ -48,10 +46,10 @@ def load_model(model_dir: str):
     from transformers import FlaxGemma4ForCausalLM
 
     if not os.path.isdir(model_dir):
-        print(f"[model_loader] FATAL: Model directory not found: {model_dir}")
-        print("[model_loader] Expected path:")
-        print("[model_loader]   /kaggle/input/models/google/gemma-4/flax/gemma-4-31b-it/1")
-        sys.exit(1)
+        raise RuntimeError(
+            f"Model directory not found: {model_dir}\n"
+            f"Expected: /kaggle/input/models/google/gemma-4/flax/gemma-4-31b-it/1"
+        )
 
     print(f"[model_loader] Loading from: {model_dir}")
     print("[model_loader] Precision: BF16 (jnp.bfloat16)")
@@ -73,17 +71,17 @@ def load_model(model_dir: str):
             _do_init=False,
         )
     except Exception as e:
-        print(f"[model_loader] FATAL: Failed to load model: {e}")
-        print()
-        print("[model_loader] Common causes:")
-        print("[model_loader]   1. Weights are PyTorch format, not Flax format")
-        print("[model_loader]      → Use the Flax variant from the Kaggle dataset")
-        print("[model_loader]   2. Weights are corrupted or incomplete")
-        print("[model_loader]      → Re-download from Kaggle dataset")
-        print("[model_loader]   3. FlaxGemma4ForCausalLM not available in your")
-        print("[model_loader]      transformers version")
-        print("[model_loader]      → pip install --upgrade transformers")
-        sys.exit(1)
+        raise RuntimeError(
+            f"Failed to load model: {e}\n\n"
+            f"Common causes:\n"
+            f"  1. Weights are PyTorch format, not Flax format\n"
+            f"     → Use the Flax variant from the Kaggle dataset\n"
+            f"  2. Weights are corrupted or incomplete\n"
+            f"     → Re-download from Kaggle dataset\n"
+            f"  3. FlaxGemma4ForCausalLM not available in your\n"
+            f"     transformers version\n"
+            f"     → pip install --upgrade transformers"
+        ) from e
 
     elapsed = time.time() - t0
     print(f"[model_loader] Model loaded in {elapsed:.1f}s")
@@ -118,6 +116,7 @@ def load_model(model_dir: str):
 
 
 if __name__ == "__main__":
+    import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--model_dir",
