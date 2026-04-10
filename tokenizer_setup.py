@@ -17,9 +17,7 @@ FIX for the TypeError: not a string error:
 Default model_dir is the Kaggle pre-installed path:
   /kaggle/input/models/google/gemma-4/flax/gemma-4-31b-it/1
 """
-import argparse
 import os
-import sys
 
 
 def load_tokenizer(model_dir: str):
@@ -32,8 +30,10 @@ def load_tokenizer(model_dir: str):
       3. Direct SentencePiece loading as last resort
     """
     if not os.path.isdir(model_dir):
-        print(f"[tokenizer] FATAL: Model directory not found: {model_dir}")
-        sys.exit(1)
+        raise RuntimeError(
+            f"Model directory not found: {model_dir}\n"
+            f"Expected: /kaggle/input/models/google/gemma-4/flax/gemma-4-31b-it/1"
+        )
 
     # ── Attempt 1: AutoProcessor (preferred for Gemma 4) ──────────
     # Gemma 4 is multimodal. AutoProcessor handles the tokenizer correctly
@@ -85,11 +85,11 @@ def load_tokenizer(model_dir: str):
 
     if tokenizer_model_path is None:
         # List what IS in the directory to help debug
-        print(f"[tokenizer] FATAL: tokenizer.model not found in {model_dir}")
-        print(f"[tokenizer] Directory contents:")
-        for item in sorted(os.listdir(model_dir)):
-            print(f"  {item}")
-        sys.exit(1)
+        contents = sorted(os.listdir(model_dir))
+        raise RuntimeError(
+            f"tokenizer.model not found in {model_dir}\n"
+            f"Directory contents: {contents}"
+        )
 
     print(f"[tokenizer] Found tokenizer.model at: {tokenizer_model_path}")
 
@@ -171,6 +171,7 @@ def load_tokenizer(model_dir: str):
 
 
 if __name__ == "__main__":
+    import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--model_dir",
