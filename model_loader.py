@@ -73,7 +73,10 @@ def load_model(model_dir: str):
     try:
         from transformers import FlaxAutoModelForCausalLM
     except ImportError:
-        from transformers import FlaxGemma4ForCausalLM as FlaxAutoModelForCausalLM
+        try:
+            from transformers import FlaxGemma4ForCausalLM as FlaxAutoModelForCausalLM
+        except ImportError:
+            from transformers import FlaxGemmaForCausalLM as FlaxAutoModelForCausalLM
 
     if not os.path.isdir(model_dir):
         raise RuntimeError(
