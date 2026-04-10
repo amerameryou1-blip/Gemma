@@ -5,16 +5,21 @@ setup.py — Install dependencies for Gemma 4 31B on Kaggle TPU v5e-8.
 CRITICAL: Kaggle already ships with JAX + libtpu pre-installed and
 configured for the TPU runtime. Reinstalling JAX BREAKS the TPU
 connection (wrong libtpu version, wrong wheel). This script only
-installs transformers, sentencepiece, and accelerate.
+installs transformers and sentencepiece.
 """
 import subprocess
 import sys
 
 
-def run(cmd: str) -> int:
-    """Run a shell command and return exit code."""
-    print(f"[setup] $ {cmd}")
-    return subprocess.call(cmd, shell=True)
+def pip(cmd: str) -> None:
+    """Run pip install and print output."""
+    print(f"[setup] $ pip {cmd}")
+    result = subprocess.run(
+        [sys.executable, "-m", "pip", "install"] + cmd.split(),
+        capture_output=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"pip install failed: {cmd}")
 
 
 def main():
@@ -26,44 +31,12 @@ def main():
     # Kaggle's TPU Docker image already has JAX + libtpu compiled
     # for the exact TPU chip. Reinstalling jax[tpu] pulls a wheel
     # with a mismatched libtpu, causing "No TPU devices detected".
-    # We only verify JAX is importable, then skip.
     print()
-    print("[setup] Checking JAX (Kaggle pre-installed — not reinstalling)...")
+    print("[setup] Checking pre-installed packages...")
+
     try:
         import jax
         print(f"  jax          {jax.__version__}  (pre-installed, OK)")
-    except ImportError:
-        print("  jax          NOT FOUND — installing as fallback...")
-        run(
-            "pip install --quiet "
-            '"jax[tpu]>=0.4.30" '
-            "-f https://storage.googleapis.com/jax-releases/libtpu_releases.html"
-        )
-
-    try:
-        import flax
-        print(f"  flax         {flax.__version__}")
-    except ImportError:
-        print("  flax         NOT FOUND — installing...")
-        run("pip install --quiet flax")
-
-    # ── Install non-JAX dependencies ───────────────────────────────
-    # transformers >= 4.49.0 for Gemma 4 architecture support
-    run("pip install --quiet \"transformers>=4.49.0\"")
-
-    # SentencePiece is required by the Gemma tokenizer
-    run("pip install --quiet sentencepiece")
-
-    # Accelerate is needed by some transformers internals
-    run("pip install --quiet accelerate")
-
-    # ── Verify installs ───────────────────────────────────────────
-    print()
-    print("[setup] Verifying installations...")
-
-    try:
-        import jax
-        print(f"  jax          {jax.__version__}")
     except ImportError:
         raise RuntimeError(
             "jax failed to import. "
@@ -75,24 +48,32 @@ def main():
         import flax
         print(f"  flax         {flax.__version__}")
     except ImportError:
-        raise RuntimeError("flax failed to import. Run: pip install flax")
+        pip("install flax")
+        import flax
+        print(f"  flax         {flax.__version__}")
 
-    try:
-        import transformers
-        print(f"  transformers {transformers.__version__}")
-    except ImportError:
-        raise RuntimeError(
-            "transformers failed to import. "
-            "Run: pip install transformers>=4.49.0"
-        )
+    # ── Install non-JAX dependencies ───────────────────────────────
+    # transformers >= 4.49.0 for Gemma 4 architecture support
+    pip("install --quiet \"transformers>=4.49.0\"")
 
-    try:
-        import sentencepiece
-        print(f"  sentencepiece OK")
-    except ImportError:
-        raise RuntimeError(
-            "sentencepiece failed to import. Run: pip install sentencepiece"
-        )
+    # SentencePiece is required by the Gemma tokenizer
+    pip("install --quiet sentencepiece")
+
+    # ── Verify installs ───────────────────────────────────────────
+    print()
+    print("[setup] Verifying installations...")
+
+    import jax
+    print(f"  jax          {jax.__version__}")
+
+    import flax
+    print(f"  flax         {flax.__version__}")
+
+    import transformers
+    print(f"  transformers {transformers.__version__}")
+
+    import sentencepiece
+    print(f"  sentencepiece OK")
 
     print()
     print("[setup] All dependencies installed successfully.")
