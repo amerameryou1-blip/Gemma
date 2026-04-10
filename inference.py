@@ -2,19 +2,16 @@
 """
 inference.py — Run text generation with Gemma 4 31B on TPU v5e-8.
 
-This is the final step. It takes the loaded model and params, tokenizes
-a prompt, and generates text.
+Uses the model's built-in generate() method with sharded params.
+The first call triggers XLA compilation (2-5 minutes) — this is normal.
 
 Known failure points and fixes:
-  1. XLA compilation timeout: The first generation call triggers XLA
-     compilation which can take 2-5 minutes. If Kaggle kills the cell
-     before compilation finishes, re-run. Fix: Add a warmup call with
-     a very short prompt first.
-  2. Shape mismatch in generate: If the prompt is longer than max_length,
-     generation will fail. Fix: Ensure max_length > len(input_ids).
-  3. OOM during generation: KV cache grows linearly with sequence length.
-     If max_length is too large, TPU memory will be exhausted. Fix:
-     Reduce max_length or use shorter prompts.
+  1. XLA compilation timeout: First call takes 2-5 minutes. Do not
+     interrupt. A warmup call with a short prompt helps.
+  2. Shape mismatch: If prompt is longer than max_length, generation
+     fails. Ensure max_length > len(input_ids).
+  3. OOM during generation: KV cache grows linearly with sequence
+     length. Reduce max_length if OOM occurs.
 """
 import time
 
@@ -35,7 +32,6 @@ def generate(
 ) -> str:
     """
     Generate text from a prompt using the Flax model on TPU.
-
     Returns the generated text (prompt + completion).
     """
     print("=" * 60)
@@ -48,8 +44,6 @@ def generate(
     print()
 
     # return_tensors="np" gives numpy arrays which JAX can consume.
-    # We do NOT use return_tensors="jax" because the tokenizer doesn't
-    # always return JAX arrays correctly on TPU.
     inputs = tokenizer(prompt, return_tensors="np", padding=True)
     input_ids = inputs["input_ids"]
     attention_mask = inputs.get("attention_mask", np.ones_like(input_ids))
@@ -63,10 +57,7 @@ def generate(
             f"Increase max_length or use a shorter prompt."
         )
 
-    # FlaxGemma4ForCausalLM.generate() handles the autoregressive loop
-    # internally. It uses JAX's pmap/scan under the hood for TPU
-    # efficiency.
-    #
+    # Flax model generate() handles the autoregressive loop internally.
     # The first call triggers XLA compilation — this is slow (2-5 min)
     # but subsequent calls are fast.
     print("[inference] Starting generation (first call includes XLA compilation)...")
@@ -159,7 +150,7 @@ if __name__ == "__main__":
 
     # Load model
     from model_loader import load_model
-    model, params = load_model(args.model_dir)
+    model, params, mesh = load_model(args.model_dir)
 
     # Warmup (triggers XLA compilation)
     warmup(model, params, tokenizer)
