@@ -11,15 +11,23 @@ import subprocess
 import sys
 
 
-def pip(cmd: str) -> None:
-    """Run pip install and print output."""
-    print(f"[setup] $ pip {cmd}")
-    result = subprocess.run(
-        [sys.executable, "-m", "pip", "install"] + cmd.split(),
-        capture_output=False,
-    )
+def pip_install(packages: list[str], extra_args: list[str] | None = None) -> None:
+    """Run pip install with proper argument handling.
+
+    FIX: The old pip() function had two bugs:
+      1. It double-added "install" (cmd had "install" + function prepended it)
+      2. cmd.split() kept literal quote characters in package names
+    This version takes a clean list of package names and builds the
+    subprocess args correctly.
+    """
+    cmd = [sys.executable, "-m", "pip", "install", "--upgrade"]
+    if extra_args:
+        cmd.extend(extra_args)
+    cmd.extend(packages)
+    print(f"[setup] $ {' '.join(cmd)}")
+    result = subprocess.run(cmd, capture_output=False)
     if result.returncode != 0:
-        raise RuntimeError(f"pip install failed: {cmd}")
+        raise RuntimeError(f"pip install failed for: {packages}")
 
 
 def main():
@@ -48,16 +56,36 @@ def main():
         import flax
         print(f"  flax         {flax.__version__}")
     except ImportError:
-        pip("install flax")
+        pip_install(["flax"])
         import flax
         print(f"  flax         {flax.__version__}")
 
-    # ── Install non-JAX dependencies ───────────────────────────────
-    # transformers >= 4.49.0 for Gemma 4 architecture support
-    pip("install --quiet \"transformers>=4.49.0\"")
+    # ── Install transformers ───────────────────────────────────────
+    # Gemma 4 architecture support was added in transformers 4.49+.
+    # We try the latest first, then fall back to specific versions.
+    print()
+    print("[setup] Installing transformers...")
 
-    # SentencePiece is required by the Gemma tokenizer
-    pip("install --quiet sentencepiece")
+    transformers_installed = False
+    for version_spec in ["transformers>=4.49.0", "transformers>=4.48.0", "transformers"]:
+        try:
+            pip_install([version_spec])
+            import transformers
+            print(f"[setup] transformers {transformers.__version__} installed OK")
+            transformers_installed = True
+            break
+        except RuntimeError:
+            print(f"[setup] Failed with {version_spec}, trying next...")
+
+    if not transformers_installed:
+        raise RuntimeError(
+            "Could not install transformers. "
+            "Check network connectivity on Kaggle."
+        )
+
+    # ── Install SentencePiece ──────────────────────────────────────
+    print("[setup] Installing sentencepiece...")
+    pip_install(["sentencepiece"])
 
     # ── Verify installs ───────────────────────────────────────────
     print()
