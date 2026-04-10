@@ -16,8 +16,6 @@ Known failure points and fixes:
      If max_length is too large, TPU memory will be exhausted. Fix:
      Reduce max_length or use shorter prompts.
 """
-import argparse
-import sys
 import time
 
 import jax
@@ -60,9 +58,10 @@ def generate(
     print(f"[inference] Prompt tokens: {prompt_len}")
 
     if prompt_len >= max_length:
-        print(f"[inference] FATAL: Prompt length ({prompt_len}) >= max_length ({max_length})")
-        print("[inference] Increase max_length or use a shorter prompt.")
-        sys.exit(1)
+        raise RuntimeError(
+            f"Prompt length ({prompt_len}) >= max_length ({max_length}). "
+            f"Increase max_length or use a shorter prompt."
+        )
 
     # FlaxGemma4ForCausalLM.generate() handles the autoregressive loop
     # internally. It uses JAX's pmap/scan under the hood for TPU
@@ -84,13 +83,13 @@ def generate(
             do_sample=temperature > 0.0,
         )
     except Exception as e:
-        print(f"[inference] FATAL: Generation failed: {e}")
-        print()
-        print("[inference] Common causes:")
-        print("[inference]   1. XLA compilation error — re-run the cell")
-        print("[inference]   2. OOM — reduce max_length")
-        print("[inference]   3. Shape mismatch — check model/params compatibility")
-        sys.exit(1)
+        raise RuntimeError(
+            f"Generation failed: {e}\n\n"
+            f"Common causes:\n"
+            f"  1. XLA compilation error — re-run the cell\n"
+            f"  2. OOM — reduce max_length\n"
+            f"  3. Shape mismatch — check model/params compatibility"
+        ) from e
 
     elapsed = time.time() - t0
     gen_tokens = output_ids.shape[1] - prompt_len
@@ -136,6 +135,7 @@ def warmup(model, params, tokenizer):
 
 
 if __name__ == "__main__":
+    import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--model_dir",
