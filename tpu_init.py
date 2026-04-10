@@ -11,13 +11,12 @@ Known failure points this script guards against:
   - TPU not visible → jax.device_count() == 0
 """
 import os
-import sys
 
 
 def init_tpu() -> int:
     """
     Initialize TPU and return the number of TPU devices found.
-    Exits with code 1 if TPU is not available.
+    Raises RuntimeError if TPU is not available.
     """
     print("=" * 60)
     print("TPU Initialization")
@@ -40,30 +39,29 @@ def init_tpu() -> int:
     print(f"  TPU devices : {device_count}")
 
     if device_count == 0:
-        print()
-        print("[tpu_init] FATAL: No TPU devices detected!")
-        print("[tpu_init] Possible causes:")
-        print("[tpu_init]   1. libtpu-nightly not installed")
-        print("[tpu_init]   2. JAX_PLATFORMS not set to 'tpu'")
-        print("[tpu_init]   3. Kaggle TPU accelerator not enabled")
-        sys.exit(1)
+        raise RuntimeError(
+            "No TPU devices detected!\n"
+            "  1. Make sure the TPU accelerator is enabled in Kaggle settings\n"
+            "  2. libtpu should be pre-installed on Kaggle TPU images\n"
+            "  3. Do NOT pip install jax[tpu] — it breaks the pre-installed libtpu"
+        )
 
     for i, dev in enumerate(devices):
         print(f"  Device [{i}] : {dev.device_kind} (id={dev.id})")
 
     # Verify we have 8 chips (v5e-8)
     if device_count != 8:
-        print()
-        print(f"[tpu_init] WARNING: Expected 8 TPU chips, found {device_count}")
-        print("[tpu_init] This may not be a TPU v5e-8 instance.")
-        print("[tpu_init] Continuing anyway...")
+        print(f"  WARNING: Expected 8 TPU chips, found {device_count}")
+        print("  This may not be a TPU v5e-8 instance. Continuing anyway...")
 
     # Verify TPU backend is actually TPU (not CPU fallback)
     backend = jax.default_backend()
     print(f"  Backend     : {backend}")
     if backend != "tpu":
-        print(f"[tpu_init] FATAL: Backend is '{backend}', expected 'tpu'")
-        sys.exit(1)
+        raise RuntimeError(
+            f"Backend is '{backend}', expected 'tpu'. "
+            f"JAX_PLATFORMS='tpu' was set but JAX still chose {backend}."
+        )
 
     # Memory check: TPU v5e has 16 GB HBM per chip, 128 GB total.
     # Gemma 4 31B in BF16 = ~58.3 GB weights.
