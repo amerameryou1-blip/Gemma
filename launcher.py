@@ -14,6 +14,7 @@ Files are fetched from:
   https://raw.githubusercontent.com/amerameryou1-blip/Gemma/refs/heads/main/
 """
 import argparse
+import importlib.util
 import os
 import sys
 import time
@@ -71,15 +72,23 @@ def download_all(dest_dir: str = ".") -> list:
     return downloaded
 
 
+def load_module(name: str, path: str):
+    """Dynamically load a Python module from a file path."""
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Cannot load module {name} from {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def run_setup():
     """Step 1: Install dependencies."""
     print(">>> STEP 1/5: Installing dependencies")
     print()
-    sys.path.insert(0, ".")
-    if "setup" in sys.modules:
-        del sys.modules["setup"]
-    import setup
-    setup.main()
+    mod = load_module("setup", "setup.py")
+    mod.main()
     print()
 
 
@@ -87,11 +96,9 @@ def run_tpu_init():
     """Step 2: Detect and initialize TPU."""
     print(">>> STEP 2/5: Initializing TPU")
     print()
-    if "tpu_init" in sys.modules:
-        del sys.modules["tpu_init"]
-    from tpu_init import init_tpu, get_mesh
-    device_count = init_tpu()
-    mesh = get_mesh(device_count)
+    mod = load_module("tpu_init", "tpu_init.py")
+    device_count = mod.init_tpu()
+    mesh = mod.get_mesh(device_count)
     print()
     return device_count, mesh
 
@@ -100,10 +107,8 @@ def run_tokenizer(model_dir: str):
     """Step 3: Load tokenizer."""
     print(">>> STEP 3/5: Loading tokenizer")
     print()
-    if "tokenizer_setup" in sys.modules:
-        del sys.modules["tokenizer_setup"]
-    from tokenizer_setup import load_tokenizer
-    tokenizer = load_tokenizer(model_dir)
+    mod = load_module("tokenizer_setup", "tokenizer_setup.py")
+    tokenizer = mod.load_tokenizer(model_dir)
     print()
     return tokenizer
 
@@ -112,27 +117,23 @@ def run_model_loader(model_dir: str):
     """Step 4: Load Flax model in BF16."""
     print(">>> STEP 4/5: Loading model (BF16)")
     print()
-    if "model_loader" in sys.modules:
-        del sys.modules["model_loader"]
-    from model_loader import load_model
-    model, params = load_model(model_dir)
+    mod = load_module("model_loader", "model_loader.py")
+    model, params, mesh = mod.load_model(model_dir)
     print()
-    return model, params
+    return model, params, mesh
 
 
 def run_inference(model, params, tokenizer, prompt, max_length, temperature, top_k):
     """Step 5: Warmup + generate text."""
     print(">>> STEP 5/5: Running inference")
     print()
-    if "inference" in sys.modules:
-        del sys.modules["inference"]
-    from inference import warmup, generate
+    mod = load_module("inference", "inference.py")
 
     # Warmup triggers XLA compilation so the real prompt doesn't timeout
-    warmup(model, params, tokenizer)
+    mod.warmup(model, params, tokenizer)
     print()
 
-    result = generate(
+    result = mod.generate(
         model=model,
         params=params,
         tokenizer=tokenizer,
@@ -222,7 +223,7 @@ def main():
         tokenizer = run_tokenizer(args.model_dir)
 
         # ── Step 4: Model ─────────────────────────────────────────
-        model, params = run_model_loader(args.model_dir)
+        model, params, mesh = run_model_loader(args.model_dir)
 
         # ── Step 5: Inference ─────────────────────────────────────
         result = run_inference(
