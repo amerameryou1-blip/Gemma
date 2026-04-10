@@ -1,0 +1,83 @@
+---------------------------------------------------------------------------
+TypeError                                 Traceback (most recent call last)
+Cell In[2], line 5
+      3 sys.argv = ["tokenizer_setup.py"]
+      4 code = requests.get("https://raw.githubusercontent.com/amerameryou1-blip/Gemma/refs/heads/main/tokenizer_setup.py").text
+----> 5 exec(compile(code, "tokenizer_setup.py", "exec"), globals())
+
+File tokenizer_setup.py:67
+
+File tokenizer_setup.py:42, in load_tokenizer(model_dir)
+
+File /usr/local/lib/python3.12/site-packages/transformers/models/auto/tokenization_auto.py:1159, in AutoTokenizer.from_pretrained(cls, pretrained_model_name_or_path, *inputs, **kwargs)
+   1156 tokenizer_class_py, tokenizer_class_fast = TOKENIZER_MAPPING[type(config)]
+   1158 if tokenizer_class_fast and (use_fast or tokenizer_class_py is None):
+-> 1159     return tokenizer_class_fast.from_pretrained(pretrained_model_name_or_path, *inputs, **kwargs)
+   1160 else:
+   1161     if tokenizer_class_py is not None:
+
+File /usr/local/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:2097, in PreTrainedTokenizerBase.from_pretrained(cls, pretrained_model_name_or_path, cache_dir, force_download, local_files_only, token, revision, trust_remote_code, *init_inputs, **kwargs)
+   2094     else:
+   2095         logger.info(f"loading file {file_path} from cache at {resolved_vocab_files[file_id]}")
+-> 2097 return cls._from_pretrained(
+   2098     resolved_vocab_files,
+   2099     pretrained_model_name_or_path,
+   2100     init_configuration,
+   2101     *init_inputs,
+   2102     token=token,
+   2103     cache_dir=cache_dir,
+   2104     local_files_only=local_files_only,
+   2105     _commit_hash=commit_hash,
+   2106     _is_local=is_local,
+   2107     trust_remote_code=trust_remote_code,
+   2108     **kwargs,
+   2109 )
+
+File /usr/local/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:2135, in PreTrainedTokenizerBase._from_pretrained(cls, resolved_vocab_files, pretrained_model_name_or_path, init_configuration, token, cache_dir, local_files_only, _commit_hash, _is_local, trust_remote_code, *init_inputs, **kwargs)
+   2132 # If one passes a GGUF file path to `gguf_file` there is no need for this check as the tokenizer will be
+   2133 # loaded directly from the GGUF file.
+   2134 if (from_slow or not has_tokenizer_file) and cls.slow_tokenizer_class is not None and not gguf_file:
+-> 2135     slow_tokenizer = (cls.slow_tokenizer_class)._from_pretrained(
+   2136         copy.deepcopy(resolved_vocab_files),
+   2137         pretrained_model_name_or_path,
+   2138         copy.deepcopy(init_configuration),
+   2139         *init_inputs,
+   2140         token=token,
+   2141         cache_dir=cache_dir,
+   2142         local_files_only=local_files_only,
+   2143         _commit_hash=_commit_hash,
+   2144         **(copy.deepcopy(kwargs)),
+   2145     )
+   2146 else:
+   2147     slow_tokenizer = None
+
+File /usr/local/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:2343, in PreTrainedTokenizerBase._from_pretrained(cls, resolved_vocab_files, pretrained_model_name_or_path, init_configuration, token, cache_dir, local_files_only, _commit_hash, _is_local, trust_remote_code, *init_inputs, **kwargs)
+   2341 # Instantiate the tokenizer.
+   2342 try:
+-> 2343     tokenizer = cls(*init_inputs, **init_kwargs)
+   2344 except import_protobuf_decode_error():
+   2345     logger.info(
+   2346         "Unable to load tokenizer model from SPM, loading from TikToken will be attempted instead."
+   2347         "(Google protobuf error: Tried to load SPM model with non-SPM vocab file).",
+   2348     )
+
+File /usr/local/lib/python3.12/site-packages/transformers/models/gemma/tokenization_gemma.py:120, in GemmaTokenizer.__init__(self, vocab_file, unk_token, bos_token, eos_token, pad_token, sp_model_kwargs, add_bos_token, add_eos_token, clean_up_tokenization_spaces, use_default_system_prompt, spaces_between_special_tokens, **kwargs)
+    118 self.use_default_system_prompt = use_default_system_prompt
+    119 self.sp_model = spm.SentencePieceProcessor(**self.sp_model_kwargs)
+--> 120 self.sp_model.Load(vocab_file)
+    122 super().__init__(
+    123     bos_token=bos_token,
+    124     eos_token=eos_token,
+   (...)    133     **kwargs,
+    134 )
+
+File /usr/local/lib/python3.12/site-packages/sentencepiece/__init__.py:961, in SentencePieceProcessor.Load(self, model_file, model_proto)
+    959 if model_proto:
+    960   return self.LoadFromSerializedProto(model_proto)
+--> 961 return self.LoadFromFile(model_file)
+
+File /usr/local/lib/python3.12/site-packages/sentencepiece/__init__.py:316, in SentencePieceProcessor.LoadFromFile(self, arg)
+    315 def LoadFromFile(self, arg):
+--> 316     return _sentencepiece.SentencePieceProcessor_LoadFromFile(self, arg)
+
+TypeError: not a string
